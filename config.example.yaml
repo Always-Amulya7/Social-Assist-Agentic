@@ -1,0 +1,24 @@
+# General agent config
+brand:
+  name: "Your Brand"
+  team_email: "brand-team@example.com"
+  timezone: "Asia/Kolkata"
+
+reporting:
+  send_now_default: true
+  schedule_every_hours: 48
+
+gmail:
+  # Path to OAuth client secret JSON placed under credentials/credentials.json
+  client_secret_file: "credentials/credentials.json"
+  token_file: "credentials/token.json"
+
+analysis:
+  max_items_per_account: 20
+  lookback_hours: 48
+  min_keyword_score: 0.2
+
+linkedin:
+  enabled: false         # set true and provide APIFY_TOKEN to enable
+  actor_id: "apify~linkedin-profile-scraper"  # example actor; adjust as needed
+

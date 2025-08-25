@@ -1,0 +1,20 @@
+apify-client==1.6.1
+APScheduler==3.10.4
+beautifulsoup4==4.12.3
+feedparser==6.0.11
+google-api-python-client==2.143.0
+google-auth==2.35.0
+google-auth-oauthlib==1.2.1
+instaloader==4.13.1
+jinja2==3.1.4
+nltk==3.9.1
+python-docx==1.1.2
+# pandas==2.2.2
+PyYAML==6.0.2
+sumy==0.11.0
+yake==0.4.8
+python-dotenv==1.0.1
+requests==2.32.3
+tqdm==4.66.5
+markdown
+ollama
