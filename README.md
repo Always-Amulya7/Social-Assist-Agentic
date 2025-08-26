@@ -59,7 +59,7 @@ ollama pull gpt-oss:20b
   - Brand name & team email  as per your details
   - Reporting schedule (`lookback_hours`, etc.)
  
-- app.py is congigured with both online and offline workflow. comment out the required to start the workflow as per needs.
+- app.py is configured with both online and offline workflow. comment out the required to start the workflow as per needs.
 
 ---
 
