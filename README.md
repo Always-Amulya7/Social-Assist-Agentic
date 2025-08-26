@@ -29,8 +29,8 @@ Reports are automatically **emailed** to your inbox or **scheduled** to run peri
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/social-intelligence-agent.git
-cd social-intelligence-agent
+git clone https://github.com/your-username/Social-Intelligence-Agent.git
+cd Social-Intelligence-Agent
 
 # Create a virtual environment
 python -m venv venv
@@ -56,8 +56,10 @@ ollama pull gpt-oss:20b
   ```
 - Update the repo with:
   - In the credential folder paste you OAuth json credentials file ie Gmail credentials (`client_secret.json`, `token.json`) 
-  - Brand name & team email  
-  - Reporting schedule (`lookback_hours`, etc.)  
+  - Brand name & team email  as per your details
+  - Reporting schedule (`lookback_hours`, etc.)
+ 
+- app.py is congigured with both online and offline workflow. comment out the required to start the workflow as per needs.
 
 ---
 
