@@ -1,0 +1,6 @@
+# Ignore the env file
+.env
+.venv
+
+# Credential files to be updated by the user
+/credentials

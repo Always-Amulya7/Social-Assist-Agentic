@@ -1,11 +1,382 @@
+# import os
+# import sys
+# import yaml
+# import datetime as dt
+# import re
+# from dotenv import load_dotenv
+# from typing import List, Dict
+
+# from utils.docx_parser import parse_handles_from_docx, parse_handles_from_csv
+# from collectors.youtube_collector import fetch_recent_videos
+# from collectors.instagram_collector import fetch_recent_posts
+# from collectors.linkedin_collector import fetch_recent_items
+# from reporting.report_builder import save_report, convert_md_to_html
+# from reporting.email_sender import send_email
+# from utils.scheduler import schedule_every
+
+# import ollama
+
+# # ------------------------------
+# # CONFIGURATION
+# # ------------------------------
+# load_dotenv()
+# CONFIG_PATH = "config.yaml" if os.path.exists("config.yaml") else "config.example.yaml"
+# MODEL_NAME = "gpt-oss:20b"
+
+# # ------------------------------
+# # AI CHAT FUNCTION
+# # ------------------------------
+# def ai_chat(prompt: str) -> str:
+#     print("\nAgent is thinking...")
+#     response = ollama.chat(
+#         model=MODEL_NAME,
+#         messages=[{"role": "user", "content": prompt}],
+#     )
+#     return response.message.content.strip()
+
+# # ------------------------------
+# # CLEAN EMAIL
+# # ------------------------------
+# def extract_email(user_input: str) -> str:
+#     match = re.search(r'[\w\.\+\-]+@[\w\.\-]+\.\w+', user_input)
+#     if match:
+#         return match.group(0)
+#     return None
+
+# # ------------------------------
+# # AI-DRIVEN CONVERSATION
+# # ------------------------------
+# def ai_driven_conversation(config):
+#     state = {}
+
+#     # Greeting
+#     print("Bot:", ai_chat("Greet the user in a friendly, professional, engaging way and tell that you are a Social Media Assistant Agent."))
+
+#     # Name
+#     print("Bot:", ai_chat("Ask the user their name. Output only the question."))
+#     state["name"] = input("Me: ").strip()
+#     print("Bot:", ai_chat(f"Hello {state['name']}! Nice to meet you."))
+
+#     # Company
+#     print("Bot:", ai_chat(f"Ask the person which company they are with. Output only the question."))
+#     state["company"] = input("Me: ").strip()
+#     print("Bot:", ai_chat(f"Great! So we’re working with {state['company']}. Give only in 15-20 words and never expose you are CHATGPT"))
+
+#     # Email
+#     print("Bot:", ai_chat(f"Ask the person for their email address. Output only the question."))
+#     email_input = input("Me: ").strip()
+#     email_clean = extract_email(email_input)
+#     if not email_clean:
+#         print("Bot: ❌ Invalid email. Please enter a valid email only.")
+#         sys.exit(1)
+#     state["email"] = email_clean
+#     print("Bot:", f"Thank you for sharing your email address—{state['email']}. We’ve got it on file.")
+
+#     # Gmail auth
+#     client_secret = config["gmail"]["client_secret_file"]
+#     if not os.path.exists(client_secret):
+#         print("Bot: ⚠️ Gmail client secret file missing:", client_secret)
+#         sys.exit(1)
+#     print("Bot: ✅ Gmail credentials file found. Ready to send reports!")
+
+#     # DOCX/CSV path
+#     print("Bot:", ai_chat("Ask for the path to DOCX or CSV containing social media handles. Output only question."))
+#     doc_path = input("Me: ").strip()
+#     if not os.path.exists(doc_path):
+#         print("Bot: ❌ File not found. Exiting.")
+#         sys.exit(1)
+
+#     if doc_path.lower().endswith(".docx"):
+#         accounts = parse_handles_from_docx(doc_path)
+#     else:
+#         accounts = parse_handles_from_csv(doc_path)
+
+#     accounts = [i for i in accounts if i["platform"].lower() in ("youtube","instagram","linkedin")]
+#     if not accounts:
+#         print("Bot: ⚠️ No valid accounts found. Exiting.")
+#         sys.exit(1)
+
+#     print(f"Bot: ✅ Parsed {len(accounts)} accounts:")
+#     for acc in accounts:
+#         print(f"   - {acc['platform'].capitalize()}: {acc['handle']}")
+
+#     # Confirm fetch
+#     print("Bot: Shall I fetch recent posts for these accounts? (Yes/No)")
+#     fetch_confirm = input("Me: ").strip().lower() in ("yes","y")
+#     if not fetch_confirm:
+#         print("AI: 👍 Exiting now.")
+#         return
+
+#     lookback = int(config["analysis"].get("lookback_hours", 48))
+#     items = search_web(accounts, lookback)
+
+#     if not items:
+#         print("Bot: ⚠️ No new content found. Using sample content for testing.")
+#         items = [
+#             {"platform":"youtube","handle":"PewDiePie","title":"Sample Video 1","description":"Sample description for testing."},
+#             {"platform":"youtube","handle":"PewDiePie","title":"Sample Video 2","description":"Another test description."},
+#         ]
+
+#     # Analyze content
+#     print("Bot: Shall I analyze the content? (Yes/No)")
+#     analyze_confirm = input("Me: ").strip().lower() in ("yes","y")
+#     if analyze_confirm:
+#         analysis_results = analyze_content_with_ai(items)
+#     else:
+#         analysis_results = {"summary":"No analysis performed.", "items": items}
+
+#     # Build report
+#     report_md = build_report(state, lookback, analysis_results)  # <-- Fixed: pass full state dictionary
+#     save_report(report_md,"data/reports")
+
+#     # Send report
+#     print("Bot: Do you want me to send this report via email now? (Yes/No)")
+#     send_now = input("Me: ").strip().lower() in ("yes","y")
+#     send_or_schedule(config, report_md, state["email"], send_now)
+
+#     print("Bot: 👋 Done! Check your email or report folder for results.")
+    
+#     optional_chat()
+
+# # ------------------------------
+# # SEARCH SOCIAL MEDIA CONTENT
+# # ------------------------------
+# def search_web(accounts: List[Dict], lookback_hours: int) -> List[Dict]:
+#     all_items=[]
+#     print("\nBot: Searching for recent content...")
+#     for acc in accounts:
+#         platform, handle = acc["platform"].lower(), acc["handle"]
+#         print(f"AI: Checking {platform.capitalize()} for {handle}...")
+#         try:
+#             if platform=="youtube":
+#                 items = fetch_recent_videos(handle, lookback_hours)
+#             elif platform=="instagram":
+#                 items = fetch_recent_posts(handle, lookback_hours)
+#             elif platform=="linkedin":
+#                 items = fetch_recent_items(handle, lookback_hours)
+#             else:
+#                 items=[]
+#         except Exception as e:
+#             print(f"Bot: ⚠️ Error fetching {platform} {handle}: {e}")
+#             items=[]
+#         if items:
+#             all_items.extend(items)
+#     return all_items
+
+# # ------------------------------
+# # ANALYZE CONTENT WITH AI
+# # ------------------------------
+# def analyze_content_with_ai(items: List[Dict]) -> Dict:
+#     combined_text = "\n".join(
+#         [f"{it['platform']} {it['handle']} Title: {it['title']} Description: {it['description']}" for it in items]
+#     )
+#     prompt = (
+#         "You are a professional social media analyst. Summarize the following content in Markdown format. "
+#         "Include:- Executive Summary,Title, Description,Sentiment,Key Themes,Trends & Insights\n"
+#         f"{combined_text}"
+#     )
+#     summary = ai_chat(prompt)
+#     return {"summary": summary, "items": items}
+
+# # ------------------------------
+# # BUILD REPORT - CLEAN EMAIL FRIENDLY
+# # ------------------------------
+# def build_report(user_info: Dict, lookback: int, analysis: Dict) -> str:
+#     now = dt.datetime.now().strftime("%B %d, %Y")
+#     brand_name = user_info.get("company", "Brand")
+
+#     high_level_summary = analysis.get("summary", "No significant trends identified.")
+#     key_insights = analysis.get("takeaway", "No key insights generated.")
+#     influencer_trends = "\n".join(
+#         [f"- {item.get('key_themes','N/A')} (Platform: {item.get('platform','')}, Handle: {item.get('handle','')})"
+#          for item in analysis.get("items", [])]
+#     ) or "No influencer content found."
+#     influencer_metrics = "\n".join(
+#         [f"- {item.get('handle','N/A')}: {item.get('views','N/A')} views, {item.get('likes','N/A')} likes, {item.get('comments','N/A')} comments"
+#          for item in analysis.get("items", [])]
+#     ) or "No metrics available."
+#     notable_posts = "\n".join(
+#         [f"- {item.get('title','N/A')} ({item.get('platform','')})" for item in analysis.get("items", [])]
+#     ) or "No notable posts available."
+
+#     # Placeholder competitor & platform summaries
+#     competitor_trends = "No competitor data provided."
+#     competitor_strategy = "No strategic shifts detected."
+#     competitor_opportunities = "No threats or opportunities identified."
+
+#     yt_summary = "\n".join(
+#         [f"- {item.get('title','N/A')}: {item.get('description','N/A')}" 
+#          for item in analysis.get("items", []) if item.get('platform','').lower() == "youtube"]
+#     ) or "No recent YouTube content."
+#     ig_summary = "\n".join(
+#         [f"- {item.get('title','N/A')}: {item.get('description','N/A')}" 
+#          for item in analysis.get("items", []) if item.get('platform','').lower() == "instagram"]
+#     ) or "No recent Instagram content."
+#     li_summary = "\n".join(
+#         [f"- {item.get('title','N/A')}: {item.get('description','N/A')}" 
+#          for item in analysis.get("items", []) if item.get('platform','').lower() == "linkedin"]
+#     ) or "No recent LinkedIn content."
+
+#     # Sentiment breakdown
+#     sent_pos = sum(1 for item in analysis.get("items", []) if item.get("sentiment","Neutral").lower()=="positive")
+#     sent_neu = sum(1 for item in analysis.get("items", []) if item.get("sentiment","Neutral").lower()=="neutral")
+#     sent_neg = sum(1 for item in analysis.get("items", []) if item.get("sentiment","Neutral").lower()=="negative")
+#     total = max(len(analysis.get("items", [])), 1)  # avoid division by zero
+
+#     actionable_insights = "Follow recommendations based on influencer and platform analysis."
+
+#     # Overall Findings (list format, not table)
+#     overall_findings = f"""
+# ## OVERALL FINDINGS
+
+# - **Sentiment:** Positive: {round(sent_pos/total*100)}% / Neutral: {round(sent_neu/total*100)}% / Negative: {round(sent_neg/total*100)}%
+# - **Number of Items:** {len(analysis.get("items", []))}
+# - **Common Themes:** {high_level_summary if high_level_summary else "N/A"}
+# """
+
+#     md = f"""
+# # {brand_name} Social Media Intelligence Report
+# **Report Date:** {now}
+# **Analysis Period:** Last {lookback} Hours
+
+# ---
+
+# ## EXECUTIVE SUMMARY
+# **Most Significant Trends Identified:**
+# {high_level_summary}
+
+# **Key Insights and Recommendations:**
+# {key_insights}
+
+# {overall_findings}
+
+# ---
+
+# ## INFLUENCER ANALYSIS
+# **Content Themes and Topics:**
+# {influencer_trends}
+
+# **Engagement Metrics and Posting Frequency:**
+# {influencer_metrics}
+
+# **Sentiment Analysis:**
+# - Positive: {round(sent_pos/total*100)}%
+# - Neutral: {round(sent_neu/total*100)}%
+# - Negative: {round(sent_neg/total*100)}%
+
+# **Notable Content Examples:**
+# {notable_posts}
+
+# ---
+
+# ## COMPETITOR ANALYSIS
+# **Competitor Content Trends:**
+# {competitor_trends}
+
+# **Strategic Shifts:**
+# {competitor_strategy}
+
+# **Competitive Threats and Opportunities:**
+# {competitor_opportunities}
+
+# ---
+
+# ## PLATFORM BREAKDOWN
+# ### YouTube
+# {yt_summary}
+
+# ### Instagram
+# {ig_summary}
+
+# ### LinkedIn
+# {li_summary}
+
+# ---
+
+# ## ACTIONABLE INSIGHTS
+# **Recommended Actions Based on Findings:**
+# {actionable_insights}
+
+# ---
+
+# **Monitoring Status:** Active across YouTube, Instagram, LinkedIn, and configured target accounts.
+# """
+#     return md
+
+# # ------------------------------
+# # SEND OR SCHEDULE EMAIL
+# # ------------------------------
+# def send_or_schedule(config, md_text, user_email, send_now=True):
+#     html_text = convert_md_to_html(md_text)
+#     sender = os.getenv("DEFAULT_FROM_NAME","Social Intelligence Agent")
+#     subject = f"{config['brand']['name']} Social Media Report"
+#     try:
+#         if send_now:
+#             send_email(
+#                 config["gmail"]["client_secret_file"],
+#                 config["gmail"]["token_file"],
+#                 sender,
+#                 [user_email, config["brand"]["team_email"]],
+#                 subject,
+#                 html_text,
+#                 is_html=True
+#             )
+#             print("AI: ✅ Report sent successfully!")
+#         else:
+#             hours=int(config["reporting"].get("schedule_every_hours",48))
+#             schedule_every(lambda: print("[Scheduled] Report executed"),hours)
+#             print(f"Bot: ⏱️ Report scheduled every {hours} hours.")
+#     except Exception as e:
+#         print(f"Bot: ❌ Error sending email: {e}")
+
+# # ------------------------------
+# # OPTIONAL CHAT LOOP AT THE END
+# # ------------------------------
+# def optional_chat():
+#     state = {}
+#     choice = input("Do you want to have a chat with me? (Yes/No): ").strip().lower()
+#     if choice not in ["yes", "y"]:
+#         print("Bot: 👋 Okay! Goodbye.")
+#         return
+
+#     # Ask for name if not already stored
+#     state["name"] = input("Me: ").strip()
+#     print("Bot:", ai_chat(f"Hello {state['name']}! Nice to meet you."))
+
+#     # Chat loop
+#     while True:
+#         user_input = input("Me: ").strip()
+#         if user_input.lower() in ["exit", "quit", "no"]:
+#             print("Bot: 👋 Goodbye!")
+#             break
+#         response = ai_chat(user_input)
+#         print("Bot:", response)
+
+# # ------------------------------
+# # MAIN
+# # ------------------------------
+# def main():
+#     try:
+#         with open(CONFIG_PATH,"r",encoding="utf-8") as f:
+#             config=yaml.safe_load(f)
+#     except FileNotFoundError:
+#         print("Bot: ❌ Configuration file not found. Exiting.")
+#         sys.exit(1)
+#     ai_driven_conversation(config)
+
+# if __name__=="__main__":
+#     main()
+
+# Offline Version for the app
+
 import os
+import sys
 import yaml
 import datetime as dt
-import json
 import re
-import ollama
 from dotenv import load_dotenv
 from typing import List, Dict
+
 from utils.docx_parser import parse_handles_from_docx, parse_handles_from_csv
 from collectors.youtube_collector import fetch_recent_videos
 from collectors.instagram_collector import fetch_recent_posts
@@ -14,209 +385,250 @@ from reporting.report_builder import save_report, convert_md_to_html
 from reporting.email_sender import send_email
 from utils.scheduler import schedule_every
 
+# ------------------------------
+# CONFIGURATION
+# ------------------------------
 load_dotenv()
-CONFIG_PATH = "config.yaml"
-if not os.path.exists(CONFIG_PATH):
-    CONFIG_PATH = "config.example.yaml"
+CONFIG_PATH = "config.yaml" if os.path.exists("config.yaml") else "config.example.yaml"
 
-MODEL_NAME = "gpt-oss:20b"  # Ollama local model
-
-# ---------------- AI Utilities ----------------
-def get_ai_message(prompt: str) -> str:
-    response = ollama.chat(model=MODEL_NAME, messages=[{"role": "user", "content": prompt}])
-    message = response.message.content.strip()
-    print(f"AI: {message}\n")
-    return message
-
-def ai_input(prompt: str) -> str:
-    """Ask the user a question via AI, then return user reply."""
-    ai_message = get_ai_message(prompt)
-    reply = input("Me: ").strip()
-    return reply
-
-def parse_ai_json(text: str) -> dict:
-    if not text:
-        return {}
-    match = re.search(r'\{.*\}', text, re.DOTALL)
+# ------------------------------
+# CLEAN EMAIL EXTRACTION
+# ------------------------------
+def extract_email(user_input: str) -> str:
+    match = re.search(r'[\w\.\+\-]+@[\w\.\-]+\.\w+', user_input)
     if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            return {}
-    return {}
+        return match.group(0)
+    return None
 
-# ---------------- Content & Analysis ----------------
-def fetch_social_content(accounts: List[Dict], lookback_hours: int) -> List[Dict]:
+# ------------------------------
+# SEARCH SOCIAL MEDIA CONTENT
+# ------------------------------
+def search_web(accounts: List[Dict], lookback_hours: int) -> List[Dict]:
     all_items = []
+    print("\nBot: Searching for recent content...")
     for acc in accounts:
-        plat, handle = acc["platform"].lower(), acc["handle"]
+        platform, handle = acc["platform"].lower(), acc["handle"]
+        print(f"Bot: Checking {platform.capitalize()} for {handle}...")
         try:
-            if plat == "youtube": items = fetch_recent_videos(handle, lookback_hours)
-            elif plat == "instagram": items = fetch_recent_posts(handle, lookback_hours)
-            elif plat == "linkedin": items = fetch_recent_items(handle, lookback_hours)
-            else: items = []
-        except:
+            if platform == "youtube":
+                items = fetch_recent_videos(handle, lookback_hours)
+            elif platform == "instagram":
+                items = fetch_recent_posts(handle, lookback_hours)
+            elif platform == "linkedin":
+                items = fetch_recent_items(handle, lookback_hours)
+            else:
+                items = []
+        except Exception as e:
+            print(f"Bot: ⚠️ Error fetching {platform} {handle}: {e}")
             items = []
-        if not items:
-            items = [{"platform": plat, "handle": handle, "title": f"Sample {plat} post",
-                      "description": f"Dummy content for {handle}"}]
-        all_items.extend(items)
+        if items:
+            all_items.extend(items)
     return all_items
 
-def analyze_content_with_ollama(items: List[Dict]):
-    content_text = "\n".join([f"{it['platform']} - {it['handle']}: {it['title']}. {it.get('description','')}" for it in items])
-    analysis_prompt = f"""
-You are a Social Media Intelligence Analyst AI.
-Analyze the following posts:
+# ------------------------------
+# ANALYZE CONTENT
+# ------------------------------
+def analyze_content(items: List[Dict]) -> Dict:
+    # For simplicity, just return items as analysis; can add AI logic here if needed
+    return {"summary": "Analysis generated.", "items": items, "takeaway": "Review the detailed content below."}
 
-{content_text}
-
-Tasks:
-1. High-level summary
-2. Top 5 influencer content themes
-3. Cross-account trends
-4. Sentiment (pos/neu/neg %)
-5. List 5 notable posts
-6. AI reasoning / thinking
-7. Conversation type per post
-
-Respond strictly in JSON:
-- high_level_summary
-- influencer_trends
-- trends_list
-- sentiment: {{pos:int, neu:int, neg:int}}
-- notable_posts
-- ai_thinking
-- conversation_types (handle, platform, type)
-"""
-    response = get_ai_message(analysis_prompt)
-    print("AI: Analysis completed\n")
-    return parse_ai_json(response)
-
-# ---------------- Report Generation ----------------
-def build_md_report(user_data, analysis_results):
+# ------------------------------
+# BUILD REPORT - CLEAN EMAIL FRIENDLY
+# ------------------------------
+def build_report(user_info: Dict, lookback: int, analysis: Dict) -> str:
     now = dt.datetime.now().strftime("%B %d, %Y")
-    formatted_influencer_trends = ", ".join(analysis_results.get('influencer_trends',[]))
-    notable_posts = "\n".join(analysis_results.get('notable_posts',[])) or "None"
-    conversation_types = "\n".join([f"- {ct['handle']} ({ct['platform']}): {ct['type']}" for ct in analysis_results.get('conversation_types',[])]) or "None"
+    brand_name = user_info.get("company", "Brand")
+
+    # Build influencer trends and metrics
+    influencer_trends = "\n".join([f"- {item.get('key_themes','N/A')} (Platform: {item.get('platform','')}, Handle: {item.get('handle','')})"
+                                   for item in analysis.get("items", [])]) or "No influencer content found."
+    influencer_metrics = "\n".join([f"- {item.get('handle','N/A')}: {item.get('views','N/A')} views, {item.get('likes','N/A')} likes, {item.get('comments','N/A')} comments"
+                                    for item in analysis.get("items", [])]) or "No metrics available."
+    notable_posts = "\n".join([f"- {item.get('title','N/A')} ({item.get('platform','')})" for item in analysis.get("items", [])]) or "No notable posts available."
+
+    # Sentiment counts
+    sent_pos = sum(1 for item in analysis.get("items", []) if item.get("sentiment","Neutral").lower()=="positive")
+    sent_neu = sum(1 for item in analysis.get("items", []) if item.get("sentiment","Neutral").lower()=="neutral")
+    sent_neg = sum(1 for item in analysis.get("items", []) if item.get("sentiment","Neutral").lower()=="negative")
+    total = max(len(analysis.get("items", [])), 1)
 
     md = f"""
-# **{user_data.get('company','Unknown Company')} Social Media Intelligence Report**
-
-**Report Date:** {now}  
-**Analysis Period:** Last {user_data.get('lookback_hours',48)} Hours  
-
----
-
-## **EXECUTIVE SUMMARY**
-{analysis_results.get('high_level_summary','No summary')}
+# {brand_name} Social Media Intelligence Report
+**Report Date:** {now}
+**Analysis Period:** Last {lookback} Hours
 
 ---
 
-## **INFLUENCER ANALYSIS**
-**Content Themes and Topics:** {formatted_influencer_trends}
+## EXECUTIVE SUMMARY
+**Most Significant Trends Identified:**
+{analysis.get('summary', 'No significant trends identified.')}
 
-**Notable Content:**
+**Key Insights and Recommendations:**
+{analysis.get('takeaway', 'No key insights generated.')}
+
+---
+
+## INFLUENCER ANALYSIS
+**Content Themes and Topics:**
+{influencer_trends}
+
+**Engagement Metrics and Posting Frequency:**
+{influencer_metrics}
+
+**Sentiment Analysis:**
+- Positive: {round(sent_pos/total*100)}%
+- Neutral: {round(sent_neu/total*100)}%
+- Negative: {round(sent_neg/total*100)}%
+
+**Notable Content Examples:**
 {notable_posts}
 
 ---
 
-## **CROSS-ACCOUNT TRENDS**
-{analysis_results.get('trends_list',[])}
+## PLATFORM BREAKDOWN
+### YouTube
+{"\n".join([f"- {i.get('title','N/A')}: {i.get('description','N/A')}" for i in analysis.get("items", []) if i.get('platform','').lower()=="youtube"]) or "No recent YouTube content."}
+
+### Instagram
+{"\n".join([f"- {i.get('title','N/A')}: {i.get('description','N/A')}" for i in analysis.get("items", []) if i.get('platform','').lower()=="instagram"]) or "No recent Instagram content."}
+
+### LinkedIn
+{"\n".join([f"- {i.get('title','N/A')}: {i.get('description','N/A')}" for i in analysis.get("items", []) if i.get('platform','').lower()=="linkedin"]) or "No recent LinkedIn content."}
 
 ---
 
-## **SENTIMENT ANALYSIS**
-- Positive: {analysis_results.get('sentiment',{}).get('pos',0)}%
-- Neutral: {analysis_results.get('sentiment',{}).get('neu',0)}%
-- Negative: {analysis_results.get('sentiment',{}).get('neg',0)}%
+## ACTIONABLE INSIGHTS
+**Recommended Actions Based on Findings:**
+Follow recommendations based on influencer and platform analysis.
 
 ---
 
-## **AI THINKING / REASONING**
-{analysis_results.get('ai_thinking','No reasoning available')}
-
----
-
-## **CONVERSATION TYPES**
-{conversation_types}
-
----
+**Monitoring Status:** Active across YouTube, Instagram, LinkedIn, and configured target accounts.
 """
     return md
 
-# ---------------- Email / Scheduler ----------------
-def send_or_schedule(config, md_text, user_email):
+# ------------------------------
+# SEND OR SCHEDULE EMAIL
+# ------------------------------
+def send_or_schedule(config, md_text, user_email, send_now=True):
     html_text = convert_md_to_html(md_text)
     sender = os.getenv("DEFAULT_FROM_NAME","Social Intelligence Agent")
-    subj = f"{config['brand']['name']} Social Media Report"
-    choice = ai_input("Do you want to send the email now or schedule every 48 hours? (1=Now, 2=Schedule)")
-    if choice == "1":
-        send_email(config["gmail"]["client_secret_file"], config["gmail"]["token_file"], sender, [user_email, config["brand"]["team_email"]], subj, html_text, is_html=True)
-        print("\n✅ Email Sent Successfully!\n")
-    elif choice == "2":
-        hours = 48
-        schedule_every(lambda: send_email(config["gmail"]["client_secret_file"], config["gmail"]["token_file"], sender, [user_email, config["brand"]["team_email"]], subj, html_text, is_html=True), hours)
-        print(f"⏱️ Scheduled to run every {hours} hours.\n")
+    subject = f"{config['brand']['name']} Social Media Report"
+    if send_now:
+        send_email(
+            config["gmail"]["client_secret_file"],
+            config["gmail"]["token_file"],
+            sender,
+            [user_email, config["brand"]["team_email"]],
+            subject,
+            html_text,
+            is_html=True
+        )
+        print("Bot: ✅ Report sent successfully!")
     else:
-        print("⚠️ Invalid choice, skipping email.\n")
+        hours=int(config["reporting"].get("schedule_every_hours",48))
+        schedule_every(lambda: print("[Scheduled] Report executed"),hours)
+        print(f"Bot: ⏱️ Report scheduled every {hours} hours.")
 
-# ---------------- Main Workflow ----------------
-def main():
-    with open(CONFIG_PATH,"r",encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+# ------------------------------
+# OPTIONAL CHAT LOOP
+# ------------------------------
+def optional_chat():
+    choice = input("Do you want to have a chat with me? (Yes/No): ").strip().lower()
+    if choice not in ["yes", "y"]:
+        print("Bot: 👋 Okay! Goodbye.")
+        return
+
+    name = input("Me: ").strip()
+    print(f"Bot: Hello {name}! Nice to meet you.")
 
     while True:
-        print("\n=== AI Social Media Intelligence Agent ===\n")
-
-        greeting = get_ai_message("Greet the user and explain your purpose as Social Media Intelligence Agent.")
-
-        # --- Collect User Info ---
-        name = ai_input("What is your name?")
-        company = ai_input("Which company do you represent?")
-        email = ai_input("What is your email address?")
-        user_data = {"name": name, "company": company, "email": email}
-
-        # --- File Upload ---
-        while True:
-            file_path = ai_input("Please provide the DOCX/CSV file path containing social media handles.")
-            if os.path.exists(file_path):
-                break
-            print("⚠️ File not found. Please provide a valid path.\n")
-        user_data["file_path"] = file_path
-
-        # --- Proceed Confirmation ---
-        proceed = ai_input("Do you want to proceed with analysis? (y/n)")
-        if proceed.lower() != "y":
-            farewell = get_ai_message("Say goodbye politely.")
+        user_input = input("Me: ").strip()
+        if user_input.lower() in ["exit", "quit", "no"]:
+            print("Bot: 👋 Goodbye!")
             break
+        # Placeholder simple echo; replace with AI call if needed
+        print("Bot:", f"You said: {user_input}")
 
-        # --- Parse handles ---
-        accounts = parse_handles_from_docx(file_path) if file_path.lower().endswith(".docx") else parse_handles_from_csv(file_path)
-        accounts = [i for i in accounts if i["platform"].lower() in ("youtube","instagram","linkedin")]
+# ------------------------------
+# AI-DRIVEN CONVERSATION (Python-only)
+# ------------------------------
+def ai_driven_conversation(config):
+    state = {}
 
-        # --- Lookback ---
-        lookback_hours = int(config.get("analysis",{}).get("lookback_hours",48))
-        user_data["lookback_hours"] = lookback_hours
+    state["name"] = input("Enter your full name: ").strip()
+    state["company"] = input("Enter your company name: ").strip()
+    email_input = input("Enter your email address: ").strip()
+    email_clean = extract_email(email_input)
+    if not email_clean:
+        print("Bot: ❌ Invalid email. Exiting.")
+        sys.exit(1)
+    state["email"] = email_clean
 
-        # --- Fetch Content ---
-        items = fetch_social_content(accounts, lookback_hours)
+    client_secret = config["gmail"]["client_secret_file"]
+    if not os.path.exists(client_secret):
+        print(f"Bot: ⚠️ Gmail client secret missing: {client_secret}")
+        sys.exit(1)
+    print("Bot: ✅ Gmail credentials found.")
 
-        # --- AI Analysis ---
-        analysis_results = analyze_content_with_ollama(items)
+    doc_path = input("Provide path to DOCX or CSV with social media handles: ").strip()
+    if not os.path.exists(doc_path):
+        print("Bot: ❌ File not found. Exiting.")
+        sys.exit(1)
+    if doc_path.lower().endswith(".docx"):
+        accounts = parse_handles_from_docx(doc_path)
+    else:
+        accounts = parse_handles_from_csv(doc_path)
+    accounts = [i for i in accounts if i["platform"].lower() in ("youtube","instagram","linkedin")]
+    if not accounts:
+        print("Bot: ⚠️ No valid accounts found. Exiting.")
+        sys.exit(1)
 
-        # --- Build Report ---
-        md_report = build_md_report(user_data, analysis_results)
-        save_report(md_report, "data/reports")
+    print(f"Bot: ✅ Parsed {len(accounts)} accounts:")
+    for acc in accounts:
+        print(f"   - {acc['platform'].capitalize()}: {acc['handle']}")
 
-        # --- Email / Schedule ---
-        send_or_schedule(config, md_report, email)
+    fetch_confirm = input("Shall I fetch recent posts for these accounts? (Yes/No): ").strip().lower() in ("yes","y")
+    if not fetch_confirm:
+        print("Bot: 👍 Exiting now.")
+        return
 
-        # --- Ask to Analyze Again ---
-        again = ai_input("Do you want to analyze another set? (y/n)")
-        if again.lower() != "y":
-            farewell = get_ai_message("Say goodbye politely.")
-            break
+    lookback = int(config["analysis"].get("lookback_hours",48))
+    items = search_web(accounts, lookback)
+    if not items:
+        print("Bot: ⚠️ No new content found. Using sample content.")
+        items = [
+            {"platform":"youtube","handle":"PewDiePie","title":"Sample Video 1","description":"Sample description for testing."},
+            {"platform":"youtube","handle":"PewDiePie","title":"Sample Video 2","description":"Another test description."},
+        ]
 
-if __name__ == "__main__":
+    analyze_confirm = input("Shall I analyze the content? (Yes/No): ").strip().lower() in ("yes","y")
+    if analyze_confirm:
+        analysis_results = analyze_content(items)
+    else:
+        analysis_results = {"summary":"No analysis performed.", "items": items, "takeaway":"No insights generated."}
+
+    report_md = build_report(state, lookback, analysis_results)
+    save_report(report_md,"data/reports")
+
+    send_now = input("Do you want me to send this report via email now? (Yes/No): ").strip().lower() in ("yes","y")
+    send_or_schedule(config, report_md, state["email"], send_now)
+
+    print("Bot: 👋 Done! Check your email or report folder for results.")
+    optional_chat()
+
+# ------------------------------
+# MAIN
+# ------------------------------
+def main():
+    try:
+        with open(CONFIG_PATH,"r",encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError:
+        print("Bot: ❌ Configuration file not found. Exiting.")
+        sys.exit(1)
+
+    ai_driven_conversation(config)
+
+if __name__=="__main__":
     main()
